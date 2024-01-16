@@ -114,7 +114,12 @@ class AircoClimate(ClimateEntity):
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
-        await self._device.set_airco({AirconCommands.Operation: True})
+        await self._device.set_airco(
+            {
+                AirconCommands.Operation: True,
+                AirconCommands.PresetTemp: self._attr_target_temperature
+            }
+        )
         self._update_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
