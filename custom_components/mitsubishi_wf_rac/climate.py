@@ -182,7 +182,8 @@ class AircoClimate(ClimateEntity):
         """Private update attributes"""
         airco = self._device.airco
 
-        self._attr_target_temperature = airco.PresetTemp
+        if airco.OperationMode != 3:
+            self._attr_target_temperature = airco.PresetTemp
         self._attr_current_temperature = airco.IndoorTemp
         self._attr_fan_mode = list(FAN_MODE_TRANSLATION.keys())[airco.AirFlow]
         self._attr_swing_mode = (
