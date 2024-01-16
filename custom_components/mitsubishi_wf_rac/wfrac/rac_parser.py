@@ -231,10 +231,10 @@ class RacParser:
 
         # get the current ac operation (3th value and with byte 3)
         ac_device.Operation = 1 == (3 & content[2])
-        # get preset temp: 5th byte divided by 2
-        ac_device.PresetTemp = content[4] / 2
         # get operation mode: check if 3th byte and byte 60 matches 8,16,12 or 4 (add 1)
         ac_device.OperationMode = find_match(60 & content[2], 8, 16, 12, 4) + 1
+        # get preset temp: 5th byte divided by 2
+        ac_device.PresetTemp = content[4] / 2 if aircon_stat.OperationMode != 3 else ac_device.PresetTemp
         ac_device.AirFlow = find_match(15 & content[3], 7, 0, 1, 2, 6)
         ac_device.WindDirectionUD = (
             0
