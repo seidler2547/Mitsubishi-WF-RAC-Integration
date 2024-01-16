@@ -117,7 +117,7 @@ class AircoClimate(ClimateEntity):
         await self._device.set_airco(
             {
                 AirconCommands.Operation: True,
-                AirconCommands.PresetTemp: self._attr_target_temperature
+                AirconCommands.PresetTemp: self._attr_target_temperature,
             }
         )
         self._update_state()
@@ -130,6 +130,7 @@ class AircoClimate(ClimateEntity):
                 if hvac_mode == HVACMode.OFF
                 else HVAC_TRANSLATION[hvac_mode],
                 AirconCommands.Operation: hvac_mode != HVACMode.OFF,
+                AirconCommands.PresetTemp: self._attr_target_temperature,
             }
         )
         self._update_state()
