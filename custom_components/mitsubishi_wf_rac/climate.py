@@ -1,9 +1,7 @@
 """ for Climate integration."""
 from __future__ import annotations
-import asyncio
 from datetime import timedelta
 import logging
-from typing import Any
 
 import voluptuous as vol
 
@@ -16,7 +14,6 @@ from homeassistant.const import UnitOfTemperature, ATTR_TEMPERATURE
 from homeassistant.util import Throttle
 from homeassistant.const import CONF_HOST
 from homeassistant.helpers import config_validation as cv, entity_platform
-from homeassistant.helpers.typing import HomeAssistantType
 
 from .wfrac.device import MIN_TIME_BETWEEN_UPDATES, Device
 from .wfrac.models.aircon import AirconCommands
@@ -39,7 +36,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=10)
-UPDATE_CONSOLIDATION_PERIOD = timedelta(milliseconds=500)
 
 
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
@@ -47,7 +43,7 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     for device in hass.data[DOMAIN]:
         if device.host == entry.data[CONF_HOST]:
             _LOGGER.info("Setup climate for: %s, %s", device.name, device.airco_id)
-            async_add_entities([AircoClimate(device, hass)])
+            async_add_entities([AircoClimate(device)])
 
     platform = entity_platform.async_get_current_platform()
 
@@ -84,14 +80,11 @@ class AircoClimate(ClimateEntity):
     _attr_min_temp: float = 16
     _attr_max_temp: float = 30
 
-    def __init__(self, device: Device, hass:HomeAssistantType) -> None:
+    def __init__(self, device: Device) -> None:
         self._device = device
-        self._hass = hass
-
         self._attr_name = device.name
         self._attr_device_info = device.device_info
         self._attr_unique_id = f"{DOMAIN}-{self._device.airco_id}-climate"
-        self._consolidatedParams = {}
         self._update_state()
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -109,21 +102,24 @@ class AircoClimate(ClimateEntity):
                 }
             )
 
-        await self._set_airco(opts)
+        await self._device.set_airco(opts)
+        self._update_state()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
-        await self._set_airco(
+        await self._device.set_airco(
             {AirconCommands.AirFlow: FAN_MODE_TRANSLATION[fan_mode]}
         )
+        self._update_state()
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
-        await self._set_airco({AirconCommands.Operation: True})
+        await self._device.set_airco({AirconCommands.Operation: True})
+        self._update_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
-        await self._set_airco(
+        await self._device.set_airco(
             {
                 AirconCommands.OperationMode: self._device.airco.OperationMode
                 if hvac_mode == HVACMode.OFF
@@ -131,6 +127,7 @@ class AircoClimate(ClimateEntity):
                 AirconCommands.Operation: hvac_mode != HVACMode.OFF,
             }
         )
+        self._update_state()
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new target swing operation."""
@@ -146,13 +143,14 @@ class AircoClimate(ClimateEntity):
         if swing_mode != SWING_3D_AUTO:
             _swing_ud = SWING_MODE_TRANSLATION[swing_mode]
 
-        await self._set_airco(
+        await self._device.set_airco(
             {
                 AirconCommands.WindDirectionUD: _swing_ud,
                 AirconCommands.WindDirectionLR: _swing_lr,
                 AirconCommands.Entrust: _swing_auto,
             }
         )
+        self._update_state()
 
     async def async_set_horizontal_swing_mode(self, swing_mode: str) -> None:
         """Set new target horizontal swing operation."""
@@ -166,32 +164,19 @@ class AircoClimate(ClimateEntity):
 
         _LOGGER.debug("airco: %s", _airco)
 
-        await self._set_airco(
+        await self._device.set_airco(
             {
                 AirconCommands.WindDirectionUD: _swing_ud,
                 AirconCommands.WindDirectionLR: _swing_lr,
                 AirconCommands.Entrust: False,  # always set to false otherwise sevice won't have effect
             }
         )
+        self._update_state()
 
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
-        await self._set_airco({AirconCommands.Operation: False})
-    
-    async def _set_airco(self, params: dict[AirconCommands, Any]) -> None:
-        will_do_update = not self._consolidatedParams
-        self._consolidatedParams.update(params)
-        
-        if will_do_update:
-            self._hass.async_add_job(self._set_airco_after_delay)
-
-    async def _set_airco_after_delay(self):
-        await asyncio.sleep(UPDATE_CONSOLIDATION_PERIOD.total_seconds())
-        params = self._consolidatedParams.copy()
-        self._consolidatedParams.clear()
-        await self._device.set_airco(params)
+        await self._device.set_airco({AirconCommands.Operation: False})
         self._update_state()
-        self.async_write_ha_state()
 
     def _update_state(self) -> None:
         """Private update attributes"""
