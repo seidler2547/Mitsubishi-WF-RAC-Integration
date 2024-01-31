@@ -190,6 +190,8 @@ class AircoClimate(ClimateEntity):
 
         if airco.OperationMode != 3:
             self._attr_target_temperature = airco.PresetTemp
+        if self._attr_target_temperature is None:
+            self._attr_target_temperature = round(airco.IndoorTemp * 2) / 2
         self._attr_current_temperature = airco.IndoorTemp
         self._attr_fan_mode = list(FAN_MODE_TRANSLATION.keys())[airco.AirFlow]
         self._attr_swing_mode = (
